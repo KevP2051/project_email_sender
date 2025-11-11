@@ -1,12 +1,28 @@
 {
   "name": "project_email_sender",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Email Sender Service - Consumes email notifications from Kafka and sends emails",
+  "main": "src/app.js",
   "scripts": {
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "dependencies": {
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "kafkajs": "^2.2.4",
+    "nodemailer": "^7.0.6"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "keywords": [
+    "kafka",
+    "email",
+    "notifications",
+    "microservices"
+  ],
   "author": "",
   "license": "ISC"
 }
