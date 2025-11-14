@@ -40,9 +40,17 @@ services:
       bash -c "
       echo '[INFO] Initializing Kafka topics...';
       sleep 10;
+      
+      echo '[INFO] Creating email-notifications topic...';
       kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic email-notifications --partitions 3 --replication-factor 1 --config retention.ms=604800000 --config cleanup.policy=delete || true;
+      
+      echo '[INFO] Creating email-dlq topic...';
       kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic email-dlq --partitions 1 --replication-factor 1 --config retention.ms=2592000000 --config cleanup.policy=delete || true;
-      echo '[SUCCESS] Topics created successfully';
+      
+      echo '[INFO] Creating complaint-status-events topic (Event Sourcing)...';
+      kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --topic complaint-status-events --partitions 3 --replication-factor 1 --config retention.ms=-1 --config cleanup.policy=compact || true;
+      
+      echo '[SUCCESS] All topics created successfully';
       echo '[INFO] Available topics:';
       kafka-topics --list --bootstrap-server kafka:29092;
       "
