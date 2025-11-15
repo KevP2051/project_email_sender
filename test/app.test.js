@@ -12,7 +12,7 @@ const EmailService = require('../src/services/EmailService');
 describe('Sistema de Notificación - Consulta de Listado de Quejas', () => {
   let emailGenerator;
   let emailService;
-
+ 
   beforeEach(() => {
     emailGenerator = new EmailGeneratorService();
     emailService = new EmailService();
@@ -181,6 +181,84 @@ describe('Sistema de Notificación - Consulta de Listado de Quejas', () => {
       expect(emailFinal.to).toBe('admin@example.com');
       expect(emailFinal.cc).toEqual(['supervisor@example.com']);
       expect(emailFinal.priority).toBe('normal');
+    });
+  });
+
+  // Generación de HTML del correo para notificación de acceso al listado
+  describe('Generación del HTML del correo electrónico', () => {
+    test('debe generar HTML completo con estructura válida para notificación de acceso', async () => {
+      const mockSendMail = jest.fn().mockResolvedValue({
+        messageId: '<html-test@gmail.com>',
+        accepted: ['admin@example.com'],
+      });
+      emailService.transporter.sendMail = mockSendMail;
+
+      const eventoAccesoListado = {
+        to: 'admin@example.com',
+        subject: 'Notificación: Acceso al Listado de Quejas',
+        message: 'Usuario ha accedido a la pantalla de consulta del listado completo de quejas del sistema',
+      };
+
+      // Generar HTML desde el servicio
+      const emailConHTML = emailGenerator.generateEmailContent(eventoAccesoListado);
+
+      // Verificar que se generó HTML
+      expect(emailConHTML.html).toBeDefined();
+      expect(emailConHTML.html).toContain('<!DOCTYPE html>');
+      expect(emailConHTML.html).toContain('<html lang="es">');
+      
+      // Verificar que contiene el mensaje de acceso al listado
+      expect(emailConHTML.html).toContain('Usuario ha accedido a la pantalla de consulta del listado completo de quejas');
+      expect(emailConHTML.html).toContain('Sistema de Notificaciones');
+
+      // Verificar que contiene estilos CSS
+      expect(emailConHTML.html).toContain('<style>');
+      expect(emailConHTML.html).toContain('font-family');
+      expect(emailConHTML.html).toContain('background-color');
+
+      // Enviar el email con HTML generado
+      const resultado = await emailService.sendEmail(emailConHTML);
+
+      // Verificar que el email se envió exitosamente
+      expect(resultado.success).toBe(true);
+      expect(mockSendMail).toHaveBeenCalledTimes(1);
+
+      // Verificar que el mock recibió el HTML completo
+      const emailEnviado = mockSendMail.mock.calls[0][0];
+      expect(emailEnviado.html).toBeDefined();
+      expect(emailEnviado.html).toContain('<!DOCTYPE html>');
+      expect(emailEnviado.html).toContain('Sistema de Notificaciones');
+      expect(emailEnviado.html).toContain('Usuario ha accedido a la pantalla de consulta del listado completo de quejas');
+    });
+
+    test('debe enviar email con HTML cuando usuario consulta el listado completo', async () => {
+      const mockSendMail = jest.fn().mockResolvedValue({
+        messageId: '<listado-html@gmail.com>',
+        accepted: ['supervisor@example.com'],
+      });
+      emailService.transporter.sendMail = mockSendMail;
+
+      const eventoConsultaListado = {
+        to: 'supervisor@example.com',
+        subject: 'Acceso al Sistema de Quejas',
+        description: 'Se consultó el listado completo de quejas en el sistema',
+      };
+
+      // Generar HTML
+      const emailConHTML = emailGenerator.generateEmailContent(eventoConsultaListado);
+
+      // Verificar estructura HTML básica
+      expect(emailConHTML.html).toBeDefined();
+      expect(emailConHTML.html).toContain('<!DOCTYPE html>');
+      expect(emailConHTML.html).toContain('Se consultó el listado completo de quejas en el sistema');
+
+      // Enviar email
+      await emailService.sendEmail(emailConHTML);
+
+      // Verificar que el HTML fue enviado correctamente
+      const emailEnviado = mockSendMail.mock.calls[0][0];
+      expect(emailEnviado.html).toContain('Se consultó el listado completo de quejas en el sistema');
+      expect(emailEnviado.subject).toBe('Acceso al Sistema de Quejas');
     });
   });
 });
