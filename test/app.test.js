@@ -44,6 +44,34 @@ describe('Sistema de Notificación - Consulta de Listado de Quejas', () => {
       expect(validation.isValid).toBe(false);
       expect(validation.errors).toContain('Recipient email (to) is required');
     });
+
+    test('debe validar que el email tenga destinatario y emisor al enviar', async () => {
+      const mockSendMail = jest.fn().mockResolvedValue({
+        messageId: '<validation-test@gmail.com>',
+        accepted: ['admin@example.com'],
+      });
+      emailService.transporter.sendMail = mockSendMail;
+
+      const eventoNotificacion = {
+        to: 'admin@example.com',
+        subject: 'Acceso al Listado de Quejas',
+        html: '<p>Notificación de acceso</p>',
+      };
+
+      await emailService.sendEmail(eventoNotificacion);
+
+      // Verificar que el email enviado tiene destinatario y emisor
+      const emailEnviado = mockSendMail.mock.calls[0][0];
+      
+      // Validar destinatario
+      expect(emailEnviado.to).toBeDefined();
+      expect(emailEnviado.to).toBe('admin@example.com');
+      
+      // Validar emisor (from) - es un objeto con address y name
+      expect(emailEnviado.from).toBeDefined();
+      expect(emailEnviado.from.address).toBe('test@example.com'); // EMAIL_USER del env
+      expect(emailEnviado.from.name).toBe('Sistema de Gestión de Quejas');
+    });
   });
 
   // Procesamiento del evento
