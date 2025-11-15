@@ -60,14 +60,11 @@ describe('Sistema de Notificación - Consulta de Listado de Quejas', () => {
 
       await emailService.sendEmail(eventoNotificacion);
 
-      // Verificar que el email enviado tiene destinatario y emisor
       const emailEnviado = mockSendMail.mock.calls[0][0];
       
-      // Validar destinatario
       expect(emailEnviado.to).toBeDefined();
       expect(emailEnviado.to).toBe('admin@example.com');
       
-      // Validar emisor (from) - es un objeto con address y name
       expect(emailEnviado.from).toBeDefined();
       expect(emailEnviado.from.address).toBe('test@example.com'); // EMAIL_USER del env
       expect(emailEnviado.from.name).toBe('Sistema de Gestión de Quejas');
@@ -174,7 +171,6 @@ describe('Sistema de Notificación - Consulta de Listado de Quejas', () => {
       });
       emailService.transporter.sendMail = mockSendMail;
 
-      // 1. Evento desde Kafka (usuario hizo click en "Consultar Quejas")
       const eventoKafka = {
         id: 'EVENT-LISTADO-001',
         to: '  ADMIN@EXAMPLE.COM  ',
@@ -185,23 +181,18 @@ describe('Sistema de Notificación - Consulta de Listado de Quejas', () => {
         timestamp: new Date().toISOString(),
       };
 
-      // 2. Sanitizar datos del evento
       const sanitized = emailGenerator.sanitizeEmailData(eventoKafka);
       expect(sanitized.to).toBe('admin@example.com');
       expect(sanitized.priority).toBe('normal');
 
-      // 3. Validar datos
       const validation = emailGenerator.validateEmailData(sanitized);
       expect(validation.isValid).toBe(true);
 
-      // 4. Generar contenido del email
       const conHTML = emailGenerator.generateEmailContent(sanitized);
       expect(conHTML.html).toBeDefined();
 
-      // 5. Enviar notificación por email
       const resultado = await emailService.sendEmail(conHTML);
 
-      // Verificaciones
       expect(resultado.success).toBe(true);
       expect(mockSendMail).toHaveBeenCalledTimes(1);
 
