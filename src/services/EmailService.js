@@ -5,6 +5,7 @@
  */
 
 const nodemailer = require('nodemailer');
+const { logEvent, logError, logger } = require('../utils/logger');
 
 class EmailService {
   constructor() {
@@ -59,16 +60,19 @@ class EmailService {
       },
     });
 
-    console.log('[OK] Email transporter initialized (Gmail)');
+    logger.info('Email transporter initialized (Gmail)', {
+      service: 'email-sender-service'
+    });
   }
 
   /**
    * Send email
    * @param {Object} emailData - Processed email data from Kafka
+   * @param {string} correlationId - Correlation ID for logging
    * @returns {Promise<Object>} Success status and message ID
    * @throws {Error} If email sending fails
    */
-  async sendEmail(emailData) {
+  async sendEmail(emailData, correlationId = null) {
     // Validate service initialization
     if (!this.initialized) {
       throw new Error('Email Service not initialized');
@@ -82,13 +86,32 @@ class EmailService {
     }
 
     try {
+      logEvent(
+        'EMAIL_SEND_STARTED',
+        {
+          emailId: emailData.id,
+          to: emailData.to,
+          subject: emailData.subject
+        },
+        correlationId
+      );
+
       // Build mail options with proper defaults
       const mailOptions = this._buildMailOptions(emailData);
 
       // Send email
       const info = await this.transporter.sendMail(mailOptions);
 
-      console.log(`[OK] Email sent successfully: ${info.messageId} (ID: ${emailData.id})`);
+      logEvent(
+        'EMAIL_SENT_SUCCESS',
+        {
+          emailId: emailData.id,
+          to: emailData.to,
+          messageId: info.messageId
+        },
+        correlationId
+      );
+
       return {
         success: true,
         messageId: info.messageId,
@@ -96,7 +119,12 @@ class EmailService {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      console.error(`[ERROR] Error sending email (${emailData.id}):`, error.message);
+      logError(error, {
+        operation: 'sendEmail',
+        service: 'email-sender-service',
+        emailId: emailData.id,
+        emailTo: emailData.to
+      }, correlationId);
       throw error;
     }
   }
@@ -167,10 +195,18 @@ class EmailService {
       };
 
       const info = await this.transporter.sendMail(mailOptions);
-      console.log(`[OK] Test email sent: ${info.messageId}`);
+      logger.info('Test email sent', {
+        service: 'email-sender-service',
+        messageId: info.messageId,
+        to
+      });
       return info;
     } catch (error) {
-      console.error('[ERROR] Error sending test email:', error.message);
+      logError(error, {
+        operation: 'sendTestEmail',
+        service: 'email-sender-service',
+        to
+      });
       throw error;
     }
   }
@@ -182,10 +218,15 @@ class EmailService {
   async verifyConnection() {
     try {
       await this.transporter.verify();
-      console.log('[OK] Transporter verified successfully');
+      logger.info('Transporter verified successfully', {
+        service: 'email-sender-service'
+      });
       return true;
     } catch (error) {
-      console.error('[ERROR] Transporter verification failed:', error.message);
+      logError(error, {
+        operation: 'verifyConnection',
+        service: 'email-sender-service'
+      });
       return false;
     }
   }

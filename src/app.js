@@ -7,12 +7,26 @@
 require('dotenv').config();
 const express = require('express');
 const KafkaConsumerService = require('./services/KafkaConsumerService');
+const correlationIdMiddleware = require('./middlewares/correlationId');
+const logsController = require('./controllers/logsController');
+const { logger, logError } = require('./utils/logger');
 
 const app = express();
 const PORT = process.env.PORT || 3032;
 
 // Middleware
 app.use(express.json());
+app.use(correlationIdMiddleware);
+
+// Logs viewer interface
+app.get('/logs', (req, res) => logsController.renderLogsViewer(req, res));
+
+// Logs API routes
+app.get('/api/logs/files', (req, res) => logsController.getLogFiles(req, res));
+app.get('/api/logs/business', (req, res) => logsController.getBusinessLogs(req, res));
+app.get('/api/logs/:filename', (req, res) => logsController.getLogs(req, res));
+app.get('/api/logs/search/:correlationId', (req, res) => logsController.searchByCorrelationId(req, res));
+app.get('/api/logs/errors/recent', (req, res) => logsController.getRecentErrors(req, res));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -52,9 +66,9 @@ let consumerService = null;
 
 async function startService() {
   try {
-    console.log('========================================');
-    console.log('Email Sender Service Starting...');
-    console.log('========================================');
+    logger.info('========================================');
+    logger.info('Email Sender Service Starting...');
+    logger.info('========================================');
 
     // Initialize Kafka Consumer
     consumerService = new KafkaConsumerService();
@@ -65,26 +79,38 @@ async function startService() {
 
     // Start Express server
     app.listen(PORT, () => {
-      console.log('========================================');
-      console.log(`Email Sender Service running on port ${PORT}`);
-      console.log(`Health check: http://localhost:${PORT}/health`);
-      console.log(`Status: http://localhost:${PORT}/status`);
-      console.log('========================================');
+      logger.info('========================================');
+      logger.info(`Email Sender Service running on port ${PORT}`, {
+        service: 'email-sender-service',
+        port: PORT
+      });
+      logger.info(`Health check: http://localhost:${PORT}/health`);
+      logger.info(`Status: http://localhost:${PORT}/status`);
+      logger.info(`Logs API: http://localhost:${PORT}/api/logs/files`);
+      logger.info('========================================');
     });
   } catch (error) {
-    console.error('Failed to start Email Sender Service:', error.message);
+    logError(error, {
+      operation: 'startService',
+      service: 'email-sender-service'
+    });
     process.exit(1);
   }
 }
 
 // Graceful shutdown
 async function shutdown() {
-  console.log('\nShutting down Email Sender Service...');
+  logger.info('Shutting down Email Sender Service...', {
+    service: 'email-sender-service'
+  });
 
   if (consumerService) {
     await consumerService.disconnect();
   }
 
+  logger.info('Email Sender Service stopped', {
+    service: 'email-sender-service'
+  });
   process.exit(0);
 }
 

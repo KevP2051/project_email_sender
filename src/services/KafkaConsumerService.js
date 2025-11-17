@@ -7,6 +7,13 @@ const { Kafka } = require('kafkajs');
 const kafkaConfig = require('../config/kafkaConfig');
 const EmailService = require('./EmailService');
 const EmailGeneratorService = require('./EmailGeneratorService');
+const { 
+  logKafkaEvent, 
+  logBusinessEvent, 
+  logMessageQueue, 
+  logError,
+  logger 
+} = require('../utils/logger');
 
 class KafkaConsumerService {
   constructor() {
@@ -23,7 +30,7 @@ class KafkaConsumerService {
    */
   async initialize() {
     if (!kafkaConfig.enabled) {
-      console.log('[WARN] Kafka is disabled');
+      logger.warn('Kafka is disabled', { service: 'email-sender-service' });
       return;
     }
 
@@ -44,7 +51,11 @@ class KafkaConsumerService {
       this.consumer = this.kafka.consumer(kafkaConfig.consumer);
       await this.consumer.connect();
       this.isConnected = true;
-      console.log('[OK] Kafka Consumer connected successfully');
+      logger.info('Kafka Consumer connected successfully', {
+        service: 'email-sender-service',
+        clientId: kafkaConfig.clientId,
+        brokers: kafkaConfig.brokers
+      });
 
       // Subscribe to email notifications topic
       await this.consumer.subscribe({
@@ -52,9 +63,15 @@ class KafkaConsumerService {
         fromBeginning: false,
       });
 
-      console.log(`[OK] Subscribed to topic: ${kafkaConfig.topics.emailNotifications}`);
+      logger.info('Subscribed to Kafka topic', {
+        service: 'email-sender-service',
+        topic: kafkaConfig.topics.emailNotifications
+      });
     } catch (error) {
-      console.error('[ERROR] Failed to connect Kafka Consumer:', error.message);
+      logError(error, {
+        operation: 'initialize',
+        service: 'email-sender-service'
+      });
       this.isConnected = false;
       throw error;
     }
@@ -72,12 +89,18 @@ class KafkaConsumerService {
     try {
       await this.consumer.run({
         eachMessage: async ({ topic, partition, message }) => {
-          await this.handleMessage(message);
+          await this.handleMessage(message, topic, partition);
         },
       });
-      console.log('[OK] Email consumer started and listening for messages');
+      logger.info('Email consumer started and listening for messages', {
+        service: 'email-sender-service',
+        topic: kafkaConfig.topics.emailNotifications
+      });
     } catch (error) {
-      console.error('[ERROR] Error in consumer loop:', error.message);
+      logError(error, {
+        operation: 'startConsuming',
+        service: 'email-sender-service'
+      });
       throw error;
     }
   }
@@ -85,15 +108,65 @@ class KafkaConsumerService {
   /**
    * Handle incoming email notification message
    * @param {Object} message - Kafka message
+   * @param {string} topic - Kafka topic
+   * @param {number} partition - Partition number
    * @returns {Promise<void>}
    */
-  async handleMessage(message) {
+  async handleMessage(message, topic, partition) {
     const startTime = Date.now();
     let emailData = null;
+    let correlationId = null;
 
     try {
+      // Extract correlation ID from headers
+      if (message.headers && message.headers['x-correlation-id']) {
+        correlationId = message.headers['x-correlation-id'].toString();
+      }
+
       emailData = JSON.parse(message.value.toString());
-      console.log(`[OK] Processing email notification: ${emailData.id}`);
+
+      // If no correlation ID in headers, try to get it from email data
+      if (!correlationId && emailData.correlationId) {
+        correlationId = emailData.correlationId;
+      }
+
+      logKafkaEvent(
+        'CONSUMED',
+        topic,
+        {
+          partition,
+          offset: message.offset,
+          emailId: emailData.id,
+          eventType: 'Solicitud de envío de email recibida desde Kafka'
+        },
+        correlationId
+      );
+
+      logMessageQueue(
+        'CONSUMED',
+        'EMAIL_SEND',
+        {
+          emailId: emailData.id,
+          to: emailData.to,
+          subject: emailData.subject,
+          description: `Email en cola para envío a ${emailData.to} - Asunto: "${emailData.subject}"`
+        },
+        correlationId
+      );
+
+      logBusinessEvent(
+        'EMAIL_CONSUMIDO_KAFKA',
+        {
+          topic,
+          partition,
+          offset: message.offset,
+          emailId: emailData.id,
+          to: emailData.to,
+          description: `Evento de email consumido desde Kafka para ${emailData.to}`
+        },
+        correlationId,
+        'email-sender-service'
+      );
 
       // Sanitize email data
       emailData = this.emailGeneratorService.sanitizeEmailData(emailData);
@@ -108,25 +181,70 @@ class KafkaConsumerService {
       emailData = this.emailGeneratorService.generateEmailContent(emailData);
 
       // Send email
-      const result = await this.emailService.sendEmail(emailData);
+      const result = await this.emailService.sendEmail(emailData, correlationId);
 
       const processingTime = Date.now() - startTime;
-      console.log(`[OK] Email sent successfully: ${emailData.id} (${processingTime}ms)`);
+      logBusinessEvent(
+        'EMAIL_ENVIADO_EXITOSO',
+        {
+          emailId: emailData.id,
+          to: emailData.to,
+          messageId: result.messageId,
+          processingTimeMs: processingTime,
+          description: `Email enviado exitosamente a ${emailData.to}. ID del mensaje: ${result.messageId}. Tiempo: ${processingTime}ms`
+        },
+        correlationId,
+        'email-sender-service'
+      );
+
+      logMessageQueue(
+        'PROCESSED',
+        'EMAIL_SEND',
+        {
+          emailId: emailData.id,
+          to: emailData.to,
+          status: 'SUCCESS',
+          processingTimeMs: processingTime
+        },
+        correlationId
+      );
+
       return result;
     } catch (error) {
       const processingTime = Date.now() - startTime;
-      console.error(
-        `[ERROR] Error processing email notification (${processingTime}ms):`,
-        error.message
+      logError(error, {
+        operation: 'handleMessage',
+        service: 'email-sender-service',
+        topic,
+        partition,
+        offset: message.offset,
+        processingTimeMs: processingTime,
+        emailId: emailData?.id,
+        emailTo: emailData?.to
+      }, correlationId);
+
+      logMessageQueue(
+        'FAILED',
+        'EMAIL_SEND',
+        {
+          emailId: emailData?.id,
+          error: error.message,
+          processingTimeMs: processingTime
+        },
+        correlationId
       );
 
       if (emailData) {
         const currentRetries = emailData.retries || 0;
         if (currentRetries >= kafkaConfig.retries.maxAttempts) {
           try {
-            await this.sendToDLQ(emailData, error.message);
+            await this.sendToDLQ(emailData, error.message, correlationId);
           } catch (dlqError) {
-            console.error(`[ERROR] Failed to send email to DLQ (${emailData.id}):`, dlqError.message);
+            logError(dlqError, {
+              operation: 'sendToDLQ',
+              service: 'email-sender-service',
+              emailId: emailData.id
+            }, correlationId);
           }
         }
       }
@@ -139,9 +257,10 @@ class KafkaConsumerService {
    * Send failed email to Dead Letter Queue
    * @param {Object} emailData - Email data that failed
    * @param {string} errorMessage - Error message
+   * @param {string} correlationId - Correlation ID for logging
    * @returns {Promise<void>}
    */
-  async sendToDLQ(emailData, errorMessage) {
+  async sendToDLQ(emailData, errorMessage, correlationId = null) {
     try {
       const producer = this.kafka.producer();
       await producer.connect();
@@ -161,15 +280,36 @@ class KafkaConsumerService {
               'event-type': 'email.failed',
               'source': 'email-sender-service',
               'error': errorMessage,
+              'x-correlation-id': correlationId || '',
             },
           },
         ],
       });
 
-      console.log(`[WARN] Email sent to DLQ: ${emailData.id}`);
+      logger.warn('Email sent to DLQ', {
+        service: 'email-sender-service',
+        emailId: emailData.id,
+        errorMessage
+      });
+
+      logKafkaEvent(
+        'PRODUCED',
+        kafkaConfig.topics.emailDLQ,
+        {
+          emailId: emailData.id,
+          errorMessage,
+          eventType: 'email.failed'
+        },
+        correlationId
+      );
+
       await producer.disconnect();
     } catch (error) {
-      console.error('[ERROR] Error sending to DLQ:', error.message);
+      logError(error, {
+        operation: 'sendToDLQ',
+        service: 'email-sender-service',
+        emailId: emailData.id
+      }, correlationId);
     }
   }
 
@@ -182,9 +322,14 @@ class KafkaConsumerService {
       try {
         await this.consumer.disconnect();
         this.isConnected = false;
-        console.log('[OK] Kafka Consumer disconnected');
+        logger.info('Kafka Consumer disconnected', {
+          service: 'email-sender-service'
+        });
       } catch (error) {
-        console.error('[ERROR] Error disconnecting Kafka Consumer:', error.message);
+        logError(error, {
+          operation: 'disconnect',
+          service: 'email-sender-service'
+        });
         throw error;
       }
     }

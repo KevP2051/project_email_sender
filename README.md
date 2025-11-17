@@ -514,11 +514,46 @@ docker-compose exec kafka kafka-console-consumer \
 
 ### Logs
 
-El servicio usa logs estructurados:
-- `[OK]` - Operaciones exitosas
-- `[ERROR]` - Errores
-- `[WARN]` - Advertencias
-- `[INFO]` - Información
+El servicio implementa logging estructurado con Winston y trazabilidad mediante Correlation IDs:
+
+#### Sistema de Logging
+
+- **Logs estructurados en formato JSON** con rotación diaria
+- **Correlation IDs** para trazabilidad end-to-end entre microservicios
+- **Archivos de log:**
+  - `logs/application-YYYY-MM-DD.log` - Logs generales (retención: 14 días)
+  - `logs/error-YYYY-MM-DD.log` - Solo errores (retención: 30 días)
+
+#### Eventos Logueados
+
+- ✅ Conexión exitosa a Kafka
+- ✅ Eventos consumidos de Kafka con correlation ID
+- ✅ Procesamiento de emails (EMAIL_CONSUMED, EMAIL_SENT_SUCCESS)
+- ✅ Operaciones de cola (CONSUMED, PROCESSED, FAILED)
+- ⚠️ Advertencias de configuración
+- ❌ Errores en el procesamiento con contexto completo
+- 📧 Envío a Dead Letter Queue (DLQ)
+
+#### Trazabilidad
+
+Todos los eventos incluyen `correlation_id` que permite rastrear una operación desde `project_complaints` hasta este consumer:
+
+```bash
+# Buscar logs por correlation ID
+grep "correlation-id-aqui" logs/application-*.log
+
+# Ver solo eventos de email
+grep "correlation-id-aqui" logs/application-*.log | grep EMAIL
+```
+
+#### Configuración
+
+Agregar a `.env`:
+```env
+LOG_LEVEL=info  # debug, info, warn, error
+```
+
+Ver documentación completa: [LOGGING_VERIFICATION_GUIDE.md](../LOGGING_VERIFICATION_GUIDE.md)
 
 ## 🤝 Integración con Otros Servicios
 
