@@ -13,7 +13,10 @@
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
     "kafkajs": "^2.2.4",
-    "nodemailer": "^7.0.6"
+    "nodemailer": "^7.0.6",
+    "uuid": "^13.0.0",
+    "winston": "^3.18.3",
+    "winston-daily-rotate-file": "^5.0.0"
   },
   "devDependencies": {
     "jest": "^29.7.0",
