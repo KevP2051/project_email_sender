@@ -1,12 +1,24 @@
-# Email Sender Service
+# Project Email Sender
 
-Microservicio dedicado al envío de emails que consume eventos de notificación desde Kafka y envía los correos electrónicos correspondientes.
+This project is an email sending microservice that consumes notification events from Kafka and sends emails asynchronously. It is designed to integrate with a complaint management system as part of a decoupled microservices architecture.
 
-## 📋 Descripción
+**Current Version:** 1.0.0
 
-Este servicio forma parte de una arquitectura de microservicios desacoplada. Consume eventos de email desde el topic `email-notifications` de Kafka, procesa los datos, genera el contenido HTML si es necesario, y envía los emails usando nodemailer (Gmail).
+## Main Features
 
-## 🏗️ Arquitectura
+- **Kafka Consumer**: Consumes email notification events from the `email-notifications` topic.
+- **Asynchronous Email Sending**: Processes and sends emails using Nodemailer (Gmail).
+- **Automatic HTML Generation**: Generates HTML templates if no content is provided.
+- **Robust Error Handling**: Automatic retries and Dead Letter Queue (DLQ) for failed messages.
+- **Data Validation**: Validates and sanitizes data before sending.
+- **Health Checks**: HTTP endpoints for service monitoring.
+- **Horizontal Scalability**: Supports consumer groups for distributed processing.
+- **End-to-End Traceability**: Correlation IDs and centralized logging for tracking operations across microservices.
+- **Log Viewer Dashboard**: Web-based interface for viewing and analyzing application logs.
+
+## Architecture
+
+The service is part of a microservices architecture where `project_complaints` publishes email notification events to Kafka, and `project_email_sender` consumes and processes them:
 
 ```
 ┌─────────────────────┐
@@ -14,8 +26,8 @@ Este servicio forma parte de una arquitectura de microservicios desacoplada. Con
 │   (Producer)        │
 └──────────┬──────────┘
            │
-           │ Publica eventos
-           │ a Kafka
+           │ Publishes events
+           │ to Kafka
            ▼
     ┌──────────────┐
     │    Kafka     │
@@ -23,7 +35,7 @@ Este servicio forma parte de una arquitectura de microservicios desacoplada. Con
     │email-notif...│
     └──────┬───────┘
            │
-           │ Consume eventos
+           │ Consumes events
            ▼
 ┌─────────────────────┐
 │ project_email_sender│
@@ -31,68 +43,255 @@ Este servicio forma parte de una arquitectura de microservicios desacoplada. Con
 └─────────────────────┘
 ```
 
-## ✨ Características
+## Project Structure
 
-- **Consumo asíncrono**: Procesa emails de forma asíncrona sin bloquear otros servicios
-- **Generación automática de HTML**: Genera templates HTML si no se proporciona contenido
-- **Manejo de errores robusto**: Reintentos automáticos y Dead Letter Queue (DLQ)
-- **Validación de datos**: Valida y sanitiza datos antes de enviar
-- **Health checks**: Endpoints para monitoreo del servicio
-- **Escalabilidad**: Puede escalarse horizontalmente usando consumer groups
-
-## 🚀 Inicio Rápido
-
-### Prerrequisitos
-
-- Node.js 14+
-- Kafka corriendo (ver `docker-compose.yml` en la raíz del proyecto)
-- Cuenta de Gmail con contraseña de aplicación
-
-### Instalación
-
-```bash
-# Instalar dependencias
-npm install
-
-# Configurar variables de entorno
-cp .env.example .env
-# Editar .env con tus credenciales
+```
+project_email_sender/
+├── package.json
+├── README.md
+├── .env.example
+├── .gitignore
+├── docker-compose.yml       # Kafka and Zookeeper setup
+├── KAFKA_SETUP_GUIDE.md     # Kafka configuration guide
+├── test/                    # Test files
+└── src/
+    ├── app.js               # Entry point
+    ├── config/
+    │   └── kafkaConfig.js   # Kafka configuration
+    ├── controllers/         # HTTP controllers
+    ├── middlewares/
+    │   └── correlationId.js # Correlation ID tracking
+    ├── services/
+    │   ├── KafkaConsumerService.js    # Kafka consumer
+    │   ├── EmailService.js            # Email sending
+    │   ├── EmailGeneratorService.js   # HTML generation
+    │   └── logViewerService.js        # Log reading service
+    ├── templates/           # Email templates
+    ├── utils/
+    │   └── logger.js        # Winston logger
+    └── views/               # EJS templates
+        └── log_viewer.ejs   # Log viewer dashboard
 ```
 
-### Configuración
+## Naming Conventions
 
-Crear archivo `.env`:
+To ensure consistency and traceability across the project, the following naming conventions must be used for issues, branches, and pull requests. This structure is based on Gitflow and includes a unique project identifier (`KAN`) for improved tracking.
 
-```env
-# Kafka Configuration
-KAFKA_ENABLED=true
-KAFKA_BROKERS=localhost:9092
+### Issue Naming
 
-# Email Configuration (Gmail)
-EMAIL_USER=tu-email@gmail.com
-EMAIL_PASSWORD=tu-contraseña-de-aplicacion
+All issues must be named using the following format:
 
-# Server Configuration
-PORT=3032
+```
+[KAN-XX] Issue Title
 ```
 
-### Ejecución
+- `KAN` is the project identifier and must always be uppercase.
+- `XX` is the issue number.
+- The title should be concise and clearly describe the issue.
+- Example:
+  ```
+  [KAN-182] Edit README to follow new naming conventions
+  ```
 
-```bash
-# Desarrollo (con nodemon)
+### Branch Naming
+
+Branches must follow the Gitflow branching model with the addition of the project identifier and issue number.
+
+```
+<type>/(KAN-XX)-branch-name
+```
+
+- `<type>`: The Gitflow prefix (e.g., `feature`, `bugfix`, `hotfix`, `release`).
+- `(KAN-XX)`: The project identifier and issue number, in parentheses, immediately after the Gitflow prefix. `KAN` must be uppercase.
+- `branch-name`: A concise, kebab-case description of the branch purpose.
+- Example:
+  ```
+  feature/(KAN-182)-edit-readme
+  bugfix/(KAN-183)-fix-kafka-connection
+  ```
+
+### Pull Request Naming
+
+Pull requests should use the same structure as branches, with the Gitflow type as a prefix. If the pull request is for documentation, add a `Docs/` prefix before the Gitflow type.
+
+```
+<Type>/(KAN-XX) Branch Title
+```
+or, for documentation:
+```
+Docs/<Type>/(KAN-XX) Branch Title
+```
+
+- `<Type>`: The Gitflow type, capitalized (e.g., `Feature`, `Bugfix`, `Hotfix`, `Release`).
+- `(KAN-XX)`: The project identifier and issue number, in parentheses, immediately after the type.
+- `Branch Title`: Short, descriptive, and in title case or plain English.
+- For documentation pull requests, start the title with `Docs/`.
+- Examples:
+  ```
+  Feature/(KAN-182) Edit README
+  Bugfix/(KAN-183) Fix Kafka connection
+  Docs/Feature/(KAN-184) Update Kafka setup guide
+  ```
+
+**Summary Table:**
+
+| Entity         | Format                                         | Example                                           |
+|----------------|------------------------------------------------|---------------------------------------------------|
+| Issue          | `[KAN-XX] Issue title`                         | `[KAN-182] Edit README to follow new naming conventions` |
+| Branch         | `type/(KAN-XX)-branch-name`                    | `feature/(KAN-182)-edit-readme`                   |
+| Pull Request   | `Type/(KAN-XX) Branch Title`                   | `Feature/(KAN-182) Edit README`                   |
+| PR (Docs)      | `Docs/Type/(KAN-XX) Branch Title`              | `Docs/Feature/(KAN-184) Update Kafka setup guide` |
+
+**Guidelines:**
+- Always keep `KAN` in uppercase and the issue number zero-padded if needed.
+- The `(KAN-XX)` identifier is mandatory in branches and pull requests for tracking.
+- Use descriptive, concise titles for issues, branches, and pull requests.
+
+## Installation
+
+1. **Clone the repository:**
+   ```powershell
+   git clone https://github.com/KevP2051/project_email_sender.git
+   cd project_email_sender
+   ```
+
+2. **Install dependencies:**
+   ```powershell
+   npm install
+   ```
+
+3. **Configure the `.env` file:**
+   ```powershell
+   cp example.env .env
+   ```
+   Edit the `.env` file with your Kafka and Gmail credentials:
+
+   ```env
+   # Kafka Configuration
+   KAFKA_ENABLED=true
+   KAFKA_BROKERS=localhost:9092
+
+   # Email Configuration (Gmail)
+   EMAIL_USER=your_email@gmail.com
+   EMAIL_PASSWORD=your_app_password
+
+   # Server Configuration
+   PORT=3032
+
+   # Logging
+   LOG_LEVEL=info
+   ```
+
+4. **Set up Kafka:**
+
+   Start Kafka and Zookeeper using Docker Compose:
+
+   ```powershell
+   docker-compose up -d
+   ```
+
+   Verify Kafka is running:
+
+   ```powershell
+   docker-compose ps
+   ```
+
+   For detailed Kafka setup instructions, see `KAFKA_SETUP_GUIDE.md`.
+
+5. **Configure Gmail:**
+   - Enable 2-step verification on your Gmail account.
+   - Generate an app password.
+   - Set the `EMAIL_USER` and `EMAIL_PASSWORD` variables in `.env`.
+
+## Pull Request Description Structure
+
+The suggested structure for pull request descriptions and the content to include is as follows:
+
+### Description
+- Provide a clear explanation of the changes made in this pull request.
+- Specify what was modified, added, or removed.
+- Indicate where the change was applied (e.g., consumer service, email service, configuration, etc.).
+- Keep it factual and specific (no justifications here, just what was changed).
+
+### Goal
+- Explain the purpose of the change.
+- Why was this modification necessary?
+- What problem does it solve or what improvement does it bring?
+- Focus on the intent (e.g., improve reliability, fix a bug, add a feature).
+
+### Impact
+- Describe the consequences of the change.
+- How does it affect the system, users, or other modules?
+- Mention any improvements, limitations, or potential risks.
+
+### Example:
+
+**Title**
+
+Feature/(KAN-180) Add Kafka consumer for email notifications
+
+**Description**
+
+Implemented KafkaConsumerService to consume email notification events from the `email-notifications` topic.
+Integrated EmailService with Nodemailer for sending emails via Gmail.
+Added EmailGeneratorService to automatically generate HTML templates.
+Configured retry logic and Dead Letter Queue (DLQ) for failed messages.
+Added health check endpoints for monitoring service status.
+Documented Kafka setup and configuration in KAFKA_SETUP_GUIDE.md.
+
+**Goal**
+
+Decouple email sending logic from the complaints service to improve system scalability and reliability.
+Enable asynchronous processing of email notifications without blocking the main application.
+Provide robust error handling and monitoring capabilities for production environments.
+
+**Impact**
+
+Users: No immediate visible changes, as emails continue to be sent as before.
+System: Improved scalability and fault tolerance through asynchronous processing.
+Risks: Requires Kafka infrastructure to be available; fallback mechanisms should be considered for Kafka downtime.
+
+## Usage
+
+### Development Server
+
+To start the server in development mode with auto-reload:
+
+```powershell
 npm run dev
+```
 
-# Producción
+To start the server in production mode:
+
+```powershell
 npm start
 ```
 
-## 📡 API Endpoints
+The service will start on the port specified in `.env` (default: 3032).
+
+### Available Scripts
+
+```powershell
+# Run tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Start development server with nodemon
+npm run dev
+
+# Start production server
+npm start
+```
+
+## API Endpoints
 
 ### Health Check
 
 **GET** `/health`
 
-Verifica el estado del servicio, conexión a Kafka y configuración de email.
+Verifies the service status, Kafka connection, and email configuration.
 
 **Response:**
 ```json
@@ -103,7 +302,7 @@ Verifica el estado del servicio, conexión a Kafka y configuración de email.
   "kafka": true,
   "email": {
     "service": "gmail",
-    "user": "tu-email@gmail.com",
+    "user": "your_email@gmail.com",
     "connected": true
   }
 }
@@ -113,7 +312,7 @@ Verifica el estado del servicio, conexión a Kafka y configuración de email.
 
 **GET** `/ready`
 
-Verifica si el servicio está listo para procesar mensajes (Kafka conectado).
+Verifies if the service is ready to process messages (Kafka connected).
 
 **Response:**
 ```json
@@ -126,12 +325,12 @@ Verifica si el servicio está listo para procesar mensajes (Kafka conectado).
 
 **POST** `/test-email`
 
-Envía un email de prueba (útil para verificar configuración).
+Sends a test email (useful for verifying configuration).
 
 **Request Body:**
 ```json
 {
-  "to": "destinatario@example.com"
+  "to": "recipient@example.com"
 }
 ```
 
@@ -144,54 +343,34 @@ Envía un email de prueba (útil para verificar configuración).
 }
 ```
 
-## 🔧 Configuración de Kafka
+### Log Viewer
 
-### Variables de Entorno
+**GET** `/logs`
 
-| Variable | Descripción | Valor por Defecto | Requerido |
-|----------|-------------|-------------------|-----------|
-| `KAFKA_ENABLED` | Habilita/deshabilita Kafka | `false` | No |
-| `KAFKA_BROKERS` | Brokers de Kafka (comma-separated) | `localhost:9092` | No |
-| `EMAIL_USER` | Email de Gmail | - | Sí |
-| `EMAIL_PASSWORD` | Contraseña de aplicación Gmail | - | Sí |
-| `PORT` | Puerto del servidor | `3032` | No |
+Access the log viewer dashboard to browse, filter, and analyze application logs in real-time.
 
-### Configuración Avanzada
+Features:
+- View logs with syntax highlighting
+- Filter by level (error, warn, info, debug)
+- Search by message, service name, or operation
+- Track requests by correlation ID
+- View statistics by level and service
+- Auto-refresh every 30 seconds
 
-Los valores de timeout y retry pueden configurarse editando `src/config/kafkaConfig.js`:
+## Kafka Message Format
 
-```javascript
-module.exports = {
-  connectionTimeout: 10000,  // ms
-  requestTimeout: 30000,      // ms
-  retries: {
-    maxAttempts: 3,
-    initialRetryTime: 100,    // ms
-    maxRetryTime: 30000,      // ms
-    multiplier: 2,
-  },
-  consumer: {
-    sessionTimeout: 30000,    // ms
-    rebalanceTimeout: 60000,  // ms
-    heartbeatInterval: 3000,  // ms
-  },
-};
-```
-
-## 📨 Formato de Mensajes Kafka
-
-El servicio espera mensajes en el siguiente formato:
+The service expects messages in the following format:
 
 ```json
 {
   "id": "email-complaint-123-1234567890",
   "timestamp": "2024-12-10T15:30:00.000Z",
-  "to": "destinatario@example.com",
+  "to": "recipient@example.com",
   "cc": ["cc1@example.com", "cc2@example.com"],
-  "subject": "Notificación de Queja #123",
-  "html": "<html>...</html>",  // Opcional, se genera si no está presente
-  "title": "Queja #123 - Entidad",
-  "fromName": "Sistema de Gestión de Quejas",
+  "subject": "Complaint Notification #123",
+  "html": "<html>...</html>",
+  "title": "Complaint #123 - Entity",
+  "fromName": "Complaint Management System",
   "priority": "high",
   "retries": 0,
   "metadata": {
@@ -199,376 +378,169 @@ El servicio espera mensajes en el siguiente formato:
     "source": "complaints-service"
   },
   "complaintId": 123,
-  "description": "Descripción de la queja",
-  "status": "abierta",
-  "entityName": "Entidad Pública",
+  "description": "Complaint description",
+  "status": "open",
+  "entityName": "Public Entity",
   "createdAt": "2024-12-10T15:30:00.000Z",
-  "action": "Nueva queja registrada"
+  "action": "New complaint registered"
 }
 ```
 
-### Campos Requeridos
+### Required Fields
 
-- `id`: ID único del email
-- `to`: Destinatario principal
-- `subject`: Asunto del email
+- `id`: Unique email ID
+- `to`: Primary recipient
+- `subject`: Email subject
 
-### Campos Opcionales
+### Optional Fields
 
-- `html`: Contenido HTML (se genera automáticamente si no está presente)
-- `cc`: Destinatarios en copia
-- `title`: Título del email
-- `fromName`: Nombre del remitente
-- `priority`: Prioridad (`normal` o `high`)
-- Campos específicos de quejas (`complaintId`, `description`, etc.)
+- `html`: HTML content (automatically generated if not provided)
+- `cc`: CC recipients
+- `title`: Email title
+- `fromName`: Sender name
+- `priority`: Priority (`normal` or `high`)
+- Complaint-specific fields (`complaintId`, `description`, etc.)
 
-## 🔄 Flujo de Procesamiento
+## Processing Flow
 
-1. **Consumo**: El servicio consume mensajes del topic `email-notifications`
-2. **Sanitización**: Los datos se sanitizan y validan
-3. **Generación de HTML**: Si no hay HTML, se genera usando templates
-4. **Envío**: Se envía el email usando nodemailer
-5. **Manejo de Errores**: Si falla, se reintenta hasta 3 veces
-6. **DLQ**: Si falla después de los reintentos, se envía a `email-dlq`
+1. **Consumption**: The service consumes messages from the `email-notifications` topic.
+2. **Sanitization**: Data is sanitized and validated.
+3. **HTML Generation**: If no HTML is provided, it is generated using templates.
+4. **Sending**: The email is sent using Nodemailer.
+5. **Error Handling**: If it fails, it retries up to 3 times.
+6. **DLQ**: If it fails after retries, it is sent to the `email-dlq` topic.
 
-## 🛠️ Estructura del Proyecto
+## Logging and Traceability
 
-```
-project_email_sender/
-├── package.json
-├── README.md
-├── .env.example
-└── src/
-    ├── app.js                    # Punto de entrada
-    ├── config/
-    │   └── kafkaConfig.js       # Configuración de Kafka
-    ├── services/
-    │   ├── KafkaConsumerService.js    # Consumidor de Kafka
-    │   ├── EmailService.js            # Envío de emails
-    │   └── EmailGeneratorService.js   # Generación de HTML
-    └── templates/
-        └── emailTemplates.js     # Templates HTML
-```
+This project implements comprehensive logging with end-to-end traceability using Correlation IDs and Winston.
 
-## 📝 Ejemplo de Implementación Kafka
+### Key Features
 
-### Configuración Básica
+- **Correlation IDs**: Unique identifiers for tracking requests across services.
+- **Structured Logging**: JSON logs with context and timestamps.
+- **Auto-rotation**: Daily log files with automatic cleanup.
+- **Microservice Support**: HTTP clients propagate correlation IDs to external services.
 
-```javascript
-// src/config/kafkaConfig.js
-module.exports = {
-  brokers: (process.env.KAFKA_BROKERS || 'localhost:9092').split(','),
-  clientId: 'email-sender-service',
-  connectionTimeout: 10000,
-  requestTimeout: 30000,
-  consumer: {
-    allowAutoTopicCreation: false,
-    groupId: 'email-sender-service-group',
-    sessionTimeout: 30000,
-    rebalanceTimeout: 60000,
-    heartbeatInterval: 3000,
-  },
-  topics: {
-    emailNotifications: 'email-notifications',
-    emailDLQ: 'email-dlq',
-  },
-  retries: {
-    maxAttempts: 3,
-    initialRetryTime: 100,
-    maxRetryTime: 30000,
-    multiplier: 2,
-  },
-  enabled: process.env.KAFKA_ENABLED === 'true',
-};
+### Log Files
+
+- `logs/application-YYYY-MM-DD.log` - General logs (retention: 14 days)
+- `logs/error-YYYY-MM-DD.log` - Error logs only (retention: 30 days)
+
+### Logged Events
+
+- Kafka connection status
+- Email consumption events with correlation ID
+- Email sending results (success/failure)
+- Queue operations (consumed, processed, failed)
+- Configuration warnings
+- Processing errors with full context
+- Dead Letter Queue (DLQ) operations
+
+### Traceability
+
+All events include `correlation_id` to trace operations from `project_complaints` to this consumer:
+
+```bash
+# Search logs by correlation ID
+grep "correlation-id-here" logs/application-*.log
+
+# View only email events
+grep "correlation-id-here" logs/application-*.log | grep EMAIL
 ```
 
-### Inicialización del Consumer
+### Configuration
 
-```javascript
-// src/services/KafkaConsumerService.js
-const { Kafka } = require('kafkajs');
-const kafkaConfig = require('../config/kafkaConfig');
-
-class KafkaConsumerService {
-  constructor() {
-    this.kafka = null;
-    this.consumer = null;
-    this.isConnected = false;
-  }
-
-  async initialize() {
-    if (!kafkaConfig.enabled) {
-      console.log('[WARN] Kafka is disabled');
-      return;
-    }
-
-    try {
-      // Crear instancia de Kafka
-      this.kafka = new Kafka({
-        clientId: kafkaConfig.clientId,
-        brokers: kafkaConfig.brokers,
-        connectionTimeout: kafkaConfig.connectionTimeout,
-        requestTimeout: kafkaConfig.requestTimeout,
-        retry: {
-          initialRetryTime: kafkaConfig.retries.initialRetryTime,
-          retries: kafkaConfig.retries.maxAttempts,
-          maxRetryTime: kafkaConfig.retries.maxRetryTime,
-          multiplier: kafkaConfig.retries.multiplier,
-        },
-      });
-
-      // Crear consumer
-      this.consumer = this.kafka.consumer(kafkaConfig.consumer);
-
-      // Conectar
-      await this.consumer.connect();
-      this.isConnected = true;
-      console.log('[OK] Kafka Consumer connected successfully');
-
-      // Suscribirse al topic
-      await this.consumer.subscribe({
-        topic: kafkaConfig.topics.emailNotifications,
-        fromBeginning: false, // Solo leer mensajes nuevos
-      });
-
-      console.log(`[OK] Subscribed to topic: ${kafkaConfig.topics.emailNotifications}`);
-    } catch (error) {
-      console.error('[ERROR] Failed to connect Kafka Consumer:', error.message);
-      this.isConnected = false;
-      throw error;
-    }
-  }
-
-  async startConsuming() {
-    if (!this.isConnected) {
-      throw new Error('Consumer not connected. Call initialize() first.');
-    }
-
-    try {
-      await this.consumer.run({
-        eachMessage: async ({ topic, partition, message }) => {
-          await this.handleMessage(message);
-        },
-      });
-      console.log('[OK] Email consumer started and listening for messages');
-    } catch (error) {
-      console.error('[ERROR] Error in consumer loop:', error.message);
-      throw error;
-    }
-  }
-
-  async handleMessage(message) {
-    try {
-      // Parsear mensaje
-      const emailData = JSON.parse(message.value.toString());
-      console.log(`[OK] Processing email notification: ${emailData.id}`);
-
-      // Procesar y enviar email
-      // ... lógica de procesamiento ...
-
-    } catch (error) {
-      console.error('[ERROR] Error processing message:', error.message);
-      // Manejar error (reintentos, DLQ, etc.)
-    }
-  }
-
-  async disconnect() {
-    if (this.consumer && this.isConnected) {
-      await this.consumer.disconnect();
-      this.isConnected = false;
-      console.log('[OK] Kafka Consumer disconnected');
-    }
-  }
-}
-
-module.exports = KafkaConsumerService;
+Add to `.env`:
+```env
+LOG_LEVEL=info  # debug, info, warn, error
 ```
 
-### Uso en app.js
+## Testing
 
-```javascript
-// src/app.js
-const KafkaConsumerService = require('./services/KafkaConsumerService');
-
-let kafkaConsumer = null;
-
-async function startService() {
-  try {
-    // Inicializar Kafka Consumer
-    if (process.env.KAFKA_ENABLED === 'true') {
-      kafkaConsumer = new KafkaConsumerService();
-      await kafkaConsumer.initialize();
-      await kafkaConsumer.startConsuming();
-      console.log('[OK] Kafka consumer initialized and started');
-    }
-
-    // Iniciar servidor Express
-    app.listen(PORT, () => {
-      console.log(`[OK] Email Sender Service running on port ${PORT}`);
-    });
-  } catch (error) {
-    console.error('[ERROR] Failed to start service:', error.message);
-    process.exit(1);
-  }
-}
-
-// Manejo de shutdown graceful
-const gracefulShutdown = async () => {
-  console.log('[INFO] Shutting down gracefully...');
-  if (kafkaConsumer && kafkaConsumer.isConsumerConnected()) {
-    await kafkaConsumer.disconnect();
-  }
-  process.exit(0);
-};
-
-process.on('SIGTERM', gracefulShutdown);
-process.on('SIGINT', gracefulShutdown);
-
-startService();
-```
-
-## 🧪 Testing
-
-### Test Manual con cURL
+### Manual Testing with cURL
 
 ```bash
 # Health check
 curl http://localhost:3032/health
 
 # Test email
-curl -X POST http://localhost:3032/test-email \
-  -H "Content-Type: application/json" \
-  -d '{"to": "test@example.com"}'
+curl -X POST http://localhost:3032/test-email -H "Content-Type: application/json" -d "{\"to\": \"test@example.com\"}"
 ```
 
-### Verificar Consumo de Kafka
+### Verify Kafka Consumption
 
 ```bash
-# Ver mensajes en el topic
-docker-compose exec kafka kafka-console-consumer \
-  --bootstrap-server kafka:29092 \
-  --topic email-notifications \
-  --from-beginning
+# View messages in the topic
+docker-compose exec kafka kafka-console-consumer --bootstrap-server kafka:29092 --topic email-notifications --from-beginning
 ```
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
-### Kafka no se conecta
+### Kafka Connection Issues
 
-1. Verificar que Kafka esté corriendo:
-   ```bash
+1. Verify Kafka is running:
+   ```powershell
    docker-compose ps
    ```
 
-2. Verificar que el topic existe:
+2. Verify the topic exists:
    ```bash
    docker-compose exec kafka kafka-topics --list --bootstrap-server kafka:29092
    ```
 
-3. Verificar variables de entorno:
-   ```bash
-   echo $KAFKA_BROKERS
-   echo $KAFKA_ENABLED
+3. Verify environment variables:
+   ```powershell
+   echo $env:KAFKA_BROKERS
+   echo $env:KAFKA_ENABLED
    ```
 
-### Emails no se envían
+### Emails Not Sending
 
-1. Verificar credenciales de Gmail en `.env`
-2. Verificar logs del servicio
-3. Verificar que los mensajes lleguen a Kafka
-4. Revisar DLQ para mensajes fallidos
+1. Verify Gmail credentials in `.env`
+2. Check service logs
+3. Verify messages are reaching Kafka
+4. Review DLQ for failed messages
 
-### Consumer no procesa mensajes
+### Consumer Not Processing Messages
 
-1. Verificar que el consumer group esté activo
-2. Verificar offsets del consumer:
+1. Verify consumer group is active
+2. Check consumer offsets:
    ```bash
-   docker-compose exec kafka kafka-consumer-groups \
-     --bootstrap-server kafka:29092 \
-     --group email-sender-service-group \
-     --describe
+   docker-compose exec kafka kafka-consumer-groups --bootstrap-server kafka:29092 --group email-sender-service-group --describe
    ```
 
-## 📚 Dependencias Principales
+## Main Dependencies
 
-- **kafkajs**: Cliente Kafka para Node.js
-- **nodemailer**: Envío de emails
-- **express**: Servidor HTTP para health checks
-- **dotenv**: Manejo de variables de entorno
+### Production
+- **kafkajs** - Kafka client for Node.js
+- **nodemailer** - Email sending
+- **express** - Web framework for HTTP endpoints
+- **dotenv** - Environment variable management
+- **winston** - Logging library
+- **winston-daily-rotate-file** - Log rotation
+- **uuid** - Correlation ID generation
 
-## 🔒 Seguridad
+### Development and Testing
+- **jest** - Testing framework
+- **nodemon** - Development auto-reload
 
-- **Credenciales**: Nunca commitees el archivo `.env`
-- **Contraseñas de aplicación**: Usa contraseñas de aplicación de Gmail, no la contraseña principal
-- **Kafka**: En producción, usa autenticación SASL/SSL
+## Security
 
-## 📈 Monitoreo
+- **Credentials**: Never commit the `.env` file
+- **App Passwords**: Use Gmail app passwords, not your main password
+- **Kafka**: In production, use SASL/SSL authentication
 
-### Métricas Recomendadas
+## Integration with Other Services
 
-- Mensajes procesados por segundo
-- Tasa de errores
-- Latencia de procesamiento
-- Mensajes en DLQ
-- Estado de conexión Kafka
+This service consumes events published by:
+- `project_complaints` - Publishes events when complaints are created/updated
 
-### Logs
+## Authors
 
-El servicio implementa logging estructurado con Winston y trazabilidad mediante Correlation IDs:
+- **Luis Enrique Hernandez Valbuena** - [@Luisen1](https://github.com/Luisen1)
+- **Kevin Johann Jimenez Poveda** - [@KevP2051](https://github.com/KevP2051)
+- **Nicolas Danilo Munoz Aldana** - [@NicolasDaniloMunozAldana](https://github.com/NicolasDaniloMunozAldana)
 
-#### Sistema de Logging
-
-- **Logs estructurados en formato JSON** con rotación diaria
-- **Correlation IDs** para trazabilidad end-to-end entre microservicios
-- **Archivos de log:**
-  - `logs/application-YYYY-MM-DD.log` - Logs generales (retención: 14 días)
-  - `logs/error-YYYY-MM-DD.log` - Solo errores (retención: 30 días)
-
-#### Eventos Logueados
-
-- ✅ Conexión exitosa a Kafka
-- ✅ Eventos consumidos de Kafka con correlation ID
-- ✅ Procesamiento de emails (EMAIL_CONSUMED, EMAIL_SENT_SUCCESS)
-- ✅ Operaciones de cola (CONSUMED, PROCESSED, FAILED)
-- ⚠️ Advertencias de configuración
-- ❌ Errores en el procesamiento con contexto completo
-- 📧 Envío a Dead Letter Queue (DLQ)
-
-#### Trazabilidad
-
-Todos los eventos incluyen `correlation_id` que permite rastrear una operación desde `project_complaints` hasta este consumer:
-
-```bash
-# Buscar logs por correlation ID
-grep "correlation-id-aqui" logs/application-*.log
-
-# Ver solo eventos de email
-grep "correlation-id-aqui" logs/application-*.log | grep EMAIL
-```
-
-#### Configuración
-
-Agregar a `.env`:
-```env
-LOG_LEVEL=info  # debug, info, warn, error
-```
-
-Ver documentación completa: [LOGGING_VERIFICATION_GUIDE.md](../LOGGING_VERIFICATION_GUIDE.md)
-
-## 🤝 Integración con Otros Servicios
-
-Este servicio consume eventos publicados por:
-- `project_complaints` - Publica eventos cuando se crean/actualizan quejas
-
-## 📄 Licencia
+## License
 
 ISC
-
-## 👥 Autores
-
-- **Nicolas Danilo Muñoz Aldana** - [@NicolasDaniloMunozAldana](https://github.com/NicolasDaniloMunozAldana)
-
----
-
-**Versión**: 1.0.0
-**Última actualización**: Diciembre 2024
